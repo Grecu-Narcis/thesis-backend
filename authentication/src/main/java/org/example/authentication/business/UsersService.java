@@ -1,0 +1,47 @@
+package org.example.authentication.business;
+
+import org.example.authentication.exceptions.UserNotFoundException;
+import org.example.authentication.models.User;
+import org.example.authentication.repositories.UsersRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.util.Optional;
+
+@Service
+public class UsersService {
+    private final UsersRepository usersRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Autowired
+    public UsersService(UsersRepository usersRepository, PasswordEncoder passwordEncoder) {
+        this.usersRepository = usersRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    public void saveUser(String username, String fullName, String email, String password) {
+        String hashedPassword = passwordEncoder.encode(password);
+        User user = new User(username, fullName, email, hashedPassword);
+        usersRepository.save(user);
+    }
+
+    private User getUser(String username) throws UserNotFoundException {
+        Optional<User> user = usersRepository.findByUsername(username);
+
+        if (user.isEmpty())
+            throw new UserNotFoundException("User not found!");
+
+        return user.get();
+    }
+
+    public boolean validateUserCredentials(String username, String password) throws UserNotFoundException {
+        User requiredUser = this.getUser(username);
+
+        return passwordEncoder.matches(password, requiredUser.getPassword());
+    }
+
+    public boolean existsByUsername(String username) {
+        return usersRepository.existsByUsername(username);
+    }
+}
