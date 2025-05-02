@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.postsservice.business.PostsService;
 import org.example.postsservice.business.S3Service;
 import org.example.postsservice.dto.AddPostDTO;
+import org.example.postsservice.dto.PostsListResponse;
 import org.example.postsservice.exceptions.AddPostException;
 import org.example.postsservice.models.Post;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,7 +73,17 @@ public class PostsController {
     }
 
     @GetMapping("/nearby")
-    public ResponseEntity<List<Post>> getNearbyPosts(@RequestParam double latitude, @RequestParam double longitude) {
-        return ResponseEntity.ok(this.postsService.getNearbyPosts(latitude, longitude));
+    public ResponseEntity<List<Post>> getNearbyPosts(@RequestParam double latitude,
+                                                     @RequestParam double longitude,
+                                                     @RequestParam int pageNumber) {
+        return ResponseEntity.ok(this.postsService.getNearbyPosts(latitude, longitude, pageNumber));
+    }
+
+    @GetMapping("/followed")
+    public ResponseEntity<PostsListResponse> getPostsByFollowedUsers(@RequestParam String username, @RequestParam int page) {
+        List<Post> foundPosts = this.postsService.findPostsByFollowedUsers(username, page);
+        boolean hasMore = this.postsService.hasMorePostsByFollowedUsers(username, page);
+
+        return ResponseEntity.ok(new PostsListResponse(foundPosts, hasMore));
     }
 }

@@ -7,6 +7,9 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,7 +21,7 @@ public class PostsService {
     private final PostsRepository postsRepository;
     private final GeometryFactory geometryFactory;
     private final int SRID = 4326;
-
+    private final int pageSize = 50;
 
     @Autowired
     public PostsService(PostsRepository postsRepository) {
@@ -51,8 +54,24 @@ public class PostsService {
         return post.get();
     }
 
-    public List<Post> getNearbyPosts(double latitude, double longitude) {
+    public List<Post> getNearbyPosts(double latitude, double longitude, int pageNumber) {
         String pointWKT = String.format(Locale.US, "POINT(%f %f)", latitude, longitude);
-        return this.postsRepository.findPostsWithinRadius(pointWKT, 1000);
+        Pageable pageable = PageRequest.of(pageNumber, pageSize);
+
+        return this.postsRepository.findPostsWithinRadius(pointWKT, 1000, pageable).toList();
+    }
+
+    public List<Post> findPostsByFollowedUsers(String username, int pageNumber) {
+        Pageable pageable = PageRequest.of(pageNumber, pageSize);
+
+        return this.postsRepository.findPostsByFollowedUsers(username, pageable).toList();
+    }
+
+    public int countPostsByFollowedUsers(String username) {
+        return this.postsRepository.countPostsByFollowedUsers(username);
+    }
+
+    public boolean hasMorePostsByFollowedUsers(String username, int pageNumber) {
+        return this.postsRepository.countPostsByFollowedUsers(username) > pageNumber * pageSize;
     }
 }
