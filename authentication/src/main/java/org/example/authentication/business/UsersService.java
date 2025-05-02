@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -43,5 +44,9 @@ public class UsersService {
 
     public boolean existsByUsername(String username) {
         return usersRepository.existsByUsername(username);
+    }
+
+    public List<String> getAllUsernames() {
+        return this.usersRepository.findAll().stream().map(User::getUsername).toList();
     }
 }
