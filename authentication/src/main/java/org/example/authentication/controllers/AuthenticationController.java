@@ -1,9 +1,10 @@
 package org.example.authentication.controllers;
 
+import jakarta.websocket.server.PathParam;
+import org.example.authentication.business.UserLocationService;
 import org.example.authentication.business.UsersNotificationTokenService;
 import org.example.authentication.business.UsersService;
-import org.example.authentication.dto.UserLoginDTO;
-import org.example.authentication.dto.UserRegisterDTO;
+import org.example.authentication.dto.*;
 import org.example.authentication.exceptions.UserNotFoundException;
 import org.example.authentication.models.UserNotificationToken;
 import org.example.authentication.utils.JWTUtils;
@@ -21,12 +22,15 @@ import java.util.Map;
 public class AuthenticationController {
     private final UsersService usersService;
     private final UsersNotificationTokenService usersNotificationTokenService;
+    private final UserLocationService userLocationService;
 
     @Autowired
     public AuthenticationController(UsersService usersService,
-                                    UsersNotificationTokenService usersNotificationTokenService) {
+                                    UsersNotificationTokenService usersNotificationTokenService,
+                                    UserLocationService userLocationService) {
         this.usersService = usersService;
         this.usersNotificationTokenService = usersNotificationTokenService;
+        this.userLocationService = userLocationService;
     }
 
     @PostMapping("/register")
@@ -72,5 +76,31 @@ public class AuthenticationController {
         System.out.println(userNotificationToken);
         this.usersNotificationTokenService.saveUserNotificationToken(userNotificationToken);
         return ResponseEntity.ok("Notification token added successfully");
+    }
+
+    @PostMapping("/location")
+    public ResponseEntity<String> addLocation(@RequestBody UserLocationDTO userLocationDTO) {
+        System.out.println(userLocationDTO);
+
+        this.userLocationService.save(
+                userLocationDTO.getUsername(),
+                userLocationDTO.getLatitude(),
+                userLocationDTO.getLongitude()
+        );
+
+        return ResponseEntity.ok("Location added successfully");
+    }
+
+    @GetMapping("/users")
+    public ResponseEntity<?> getUsersByUsername(@RequestParam String searchKey,
+                                                          @RequestParam int page) {
+        List<UserResponseDTO> users = this.usersService.getUsersByUsername(searchKey, page)
+                .stream()
+                .map(user -> new UserResponseDTO(user.getUsername(), user.getFullName()))
+                .toList();
+
+        boolean hasMore = this.usersService.hasMoreUsers(searchKey, page);
+
+        return ResponseEntity.ok(new UsersListResponse(users, hasMore));
     }
 }

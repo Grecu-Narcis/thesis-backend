@@ -4,8 +4,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.postsservice.business.PostsService;
 import org.example.postsservice.business.S3Service;
 import org.example.postsservice.dto.AddPostDTO;
+import org.example.postsservice.dto.LikePostDTO;
 import org.example.postsservice.dto.PostsListResponse;
 import org.example.postsservice.exceptions.AddPostException;
+import org.example.postsservice.exceptions.AlreadyLikedPostException;
+import org.example.postsservice.exceptions.PostNotFoundException;
 import org.example.postsservice.models.Post;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -49,9 +52,7 @@ public class PostsController {
     public ResponseEntity<?> getPost(@PathVariable Long postId) {
         try {
             return ResponseEntity.ok(this.postsService.getById(postId));
-        }
-
-        catch (Exception e) {
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Post not found!");
         }
     }
@@ -73,10 +74,16 @@ public class PostsController {
     }
 
     @GetMapping("/nearby")
-    public ResponseEntity<List<Post>> getNearbyPosts(@RequestParam double latitude,
-                                                     @RequestParam double longitude,
-                                                     @RequestParam int pageNumber) {
-        return ResponseEntity.ok(this.postsService.getNearbyPosts(latitude, longitude, pageNumber));
+    public ResponseEntity<?> getNearbyPosts(@RequestParam double latitude,
+                                            @RequestParam double longitude,
+                                            @RequestParam String username,
+                                            @RequestParam(name="page") int pageNumber) {
+        System.out.println("Nearby posts request: " + latitude + " " + longitude + " " + username + " " + pageNumber);
+
+        List<Post> foundPosts = this.postsService.findNearbyPosts(username, latitude, longitude, pageNumber);
+        boolean hasMore = this.postsService.hasMoreNearbyPosts(username, pageNumber);
+
+        return ResponseEntity.ok(new PostsListResponse(foundPosts, hasMore));
     }
 
     @GetMapping("/followed")
@@ -85,5 +92,36 @@ public class PostsController {
         boolean hasMore = this.postsService.hasMorePostsByFollowedUsers(username, page);
 
         return ResponseEntity.ok(new PostsListResponse(foundPosts, hasMore));
+    }
+
+    @PostMapping("/like")
+    public ResponseEntity<?> likePost(@RequestBody LikePostDTO likePostDTO) {
+        try {
+            this.postsService.likePost(likePostDTO.getPostId(), likePostDTO.getUsername());
+            System.out.println("Liked post: " + likePostDTO.getPostId() + " username: " + likePostDTO.getUsername());
+            return ResponseEntity.ok("Liked post");
+        } catch (AlreadyLikedPostException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+        } catch (PostNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @DeleteMapping("/like/{postId}/{username}")
+    public ResponseEntity<?> unlikePost(@PathVariable Long postId,
+                                        @PathVariable String username) {
+        try {
+            System.out.println("Unliked post: " + postId + " username: " + username);
+            this.postsService.unlikePost(postId, username);
+            return ResponseEntity.noContent().build();
+        } catch (PostNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/liked/{postId}/{username}")
+    public ResponseEntity<?> isPostLiked(@PathVariable Long postId,
+                                         @PathVariable String username) {
+        return ResponseEntity.ok(this.postsService.isLikedByUser(postId, username));
     }
 }

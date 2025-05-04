@@ -4,6 +4,9 @@ import org.example.authentication.exceptions.UserNotFoundException;
 import org.example.authentication.models.User;
 import org.example.authentication.repositories.UsersRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -14,6 +17,8 @@ import java.util.Optional;
 public class UsersService {
     private final UsersRepository usersRepository;
     private final PasswordEncoder passwordEncoder;
+
+    private final int pageSize = 30;
 
     @Autowired
     public UsersService(UsersRepository usersRepository, PasswordEncoder passwordEncoder) {
@@ -48,5 +53,15 @@ public class UsersService {
 
     public List<String> getAllUsernames() {
         return this.usersRepository.findAll().stream().map(User::getUsername).toList();
+    }
+
+    public List<User> getUsersByUsername(String searchKey, int page) {
+        Pageable pageable = PageRequest.of(page, this.pageSize);
+        return usersRepository.findByUsernameContainingIgnoreCase(searchKey, pageable).toList();
+    }
+
+    public boolean hasMoreUsers(String searchKey, int page) {
+        Pageable pageable = PageRequest.of(page, this.pageSize);
+        return usersRepository.countByUsernameContainingIgnoreCase(searchKey) > (page + 1) * this.pageSize;
     }
 }

@@ -11,16 +11,23 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface PostsRepository extends JpaRepository<Post, Long> {
     @Query(value = """ 
-            SELECT * FROM posts, ST_Distance_Sphere(location, ST_GeomFromText(:point, 4326)) AS distance
-            WHERE ST_Distance_Sphere(location, ST_GeomFromText(:point, 4326)) <= :radius
-            ORDER BY distance
+            SELECT * FROM posts
+            WHERE createdBy <> :username
+            ORDER BY ST_Distance_Sphere(location, ST_GeomFromText(:point, 4326))
             """,
             countQuery = """
             SELECT COUNT(*) FROM posts
-            WHERE ST_Distance_Sphere(location, ST_GeomFromText(:point, 4326)) <= :radius
+            WHERE createdBy <> :username
             """,
             nativeQuery = true)
-    Page<Post> findPostsWithinRadius(@Param("point") String point, @Param("radius") double radius, Pageable pageable);
+    Page<Post> findPostsNearbyUser(@Param("point") String point, @Param("username") String username, Pageable pageable);
+
+    @Query(value = """ 
+            SELECT COUNT(*) FROM posts
+            WHERE createdBy <> :username
+            """,
+            nativeQuery = true)
+    int countNearbyPosts(@Param("username") String username);
 
     @Query(value = """ 
             SELECT * FROM posts
@@ -34,6 +41,7 @@ public interface PostsRepository extends JpaRepository<Post, Long> {
 
     @Query(value = """ 
             SELECT COUNT(*) FROM posts
+            WHERE createdBy <> :username
             """,
             nativeQuery = true)
     int countPostsByFollowedUsers(@Param("username") String username);
