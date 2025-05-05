@@ -1,8 +1,10 @@
 package org.example.postsservice.controllers;
 
 import lombok.extern.slf4j.Slf4j;
+import org.example.postsservice.business.PostsNotificationService;
 import org.example.postsservice.business.PostsService;
 import org.example.postsservice.business.S3Service;
+import org.example.postsservice.business.SqsService;
 import org.example.postsservice.dto.AddPostDTO;
 import org.example.postsservice.dto.LikePostDTO;
 import org.example.postsservice.dto.PostsListResponse;
@@ -26,11 +28,16 @@ import java.util.Map;
 public class PostsController {
     private final S3Service s3Service;
     private final PostsService postsService;
+    private final PostsNotificationService postsNotificationService;
+    private final SqsService sqsService;
 
     @Autowired
-    public PostsController(S3Service s3Service, PostsService postsService) {
+    public PostsController(S3Service s3Service, PostsService postsService,
+                           PostsNotificationService postsNotificationService, SqsService sqsService) {
         this.s3Service = s3Service;
         this.postsService = postsService;
+        this.sqsService = sqsService;
+        this.postsNotificationService = postsNotificationService;
     }
 
     @GetMapping(path = "/presignedUrl")
@@ -58,15 +65,16 @@ public class PostsController {
     }
 
     @PostMapping(path = "")
-    public ResponseEntity<String> addPost(@RequestBody AddPostDTO postDTO) {
+    public ResponseEntity<?> addPost(@RequestBody AddPostDTO postDTO) {
         try {
-            System.out.println(postDTO);
-
-            this.postsService.addPost(postDTO.getImageKey(), postDTO.getCreatedBy(),
+            Post createdPost = this.postsService.addPost(postDTO.getImageKey(), postDTO.getCreatedBy(),
                     postDTO.getDescription(), postDTO.getLatitude(), postDTO.getLongitude(),
                     postDTO.getCarBrand(), postDTO.getCarModel(), postDTO.getProductionYear());
 
-            return ResponseEntity.ok("Post added");
+            this.postsNotificationService.notifyPostAdded(createdPost.getPostId(), postDTO.getCreatedBy(), postDTO.getLatitude(),
+                    postDTO.getLongitude(), postDTO.getCarBrand(), postDTO.getCarModel(), postDTO.getProductionYear());
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdPost);
         } catch (AddPostException e) {
             log.error(e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -123,5 +131,11 @@ public class PostsController {
     public ResponseEntity<?> isPostLiked(@PathVariable Long postId,
                                          @PathVariable String username) {
         return ResponseEntity.ok(this.postsService.isLikedByUser(postId, username));
+    }
+
+    @GetMapping("/demo")
+    public ResponseEntity<?> demo() {
+        this.sqsService.sendMessage("Hello from the demo endpoint!");
+        return ResponseEntity.ok("Demo endpoint");
     }
 }

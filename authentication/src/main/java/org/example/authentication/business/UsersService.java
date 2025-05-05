@@ -61,7 +61,6 @@ public class UsersService {
     }
 
     public boolean hasMoreUsers(String searchKey, int page) {
-        Pageable pageable = PageRequest.of(page, this.pageSize);
         return usersRepository.countByUsernameContainingIgnoreCase(searchKey) > (page + 1) * this.pageSize;
     }
 }

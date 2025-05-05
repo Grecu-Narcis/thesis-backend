@@ -37,7 +37,7 @@ public class PostsService {
     }
 
     // TODO: Add post validator
-    public void addPost(String imageKey, String createdBy, String description, double latitude, double longitude,
+    public Post addPost(String imageKey, String createdBy, String description, double latitude, double longitude,
                         String carBrand, String carModel, int productionYear) throws AddPostException {
         try {
             Point postLocation = this.geometryFactory.createPoint(new Coordinate(longitude, latitude));
@@ -45,7 +45,7 @@ public class PostsService {
 
             Post postToAdd = new Post(imageKey, createdBy, description, postLocation, carBrand, carModel, productionYear);
 
-            this.postsRepository.save(postToAdd);
+            return this.postsRepository.save(postToAdd);
         }
         catch (Exception e) {
             throw new AddPostException("Failed to add post!");
