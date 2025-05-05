@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface PostsRepository extends JpaRepository<Post, Long> {
     @Query(value = """ 
@@ -45,4 +47,21 @@ public interface PostsRepository extends JpaRepository<Post, Long> {
             """,
             nativeQuery = true)
     int countPostsByFollowedUsers(@Param("username") String username);
+
+    // TODO: Add condition to check if the user is not the one who created the post
+    @Query(value = """
+    SELECT token
+    FROM users_notification_token
+    INNER JOIN user_location on user_location.username = users_notification_token.username
+    WHERE ST_Distance_Sphere(user_location.location, ST_GeomFromText(:point, 4326)) <= :distance AND 
+          user_location.username <> :username
+    """,
+""",
+    nativeQuery = true)
+    Page<String> findNearbyUsersNotificationTokens(
+            @Param("point") String point,
+            @Param("username") String username,
+            @Param("distance") int distance,
+            Pageable pageable
+    );
 }
