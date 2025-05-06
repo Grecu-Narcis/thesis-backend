@@ -11,6 +11,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -61,25 +62,17 @@ public class PostsService {
         return post.get();
     }
 
-    public List<Post> findNearbyPosts(String username, double latitude, double longitude, int pageNumber) {
+    public Page<Post> findNearbyPosts(String username, double latitude, double longitude, int pageNumber) {
         String pointWKT = String.format(Locale.US, "POINT(%f %f)", latitude, longitude);
         Pageable pageable = PageRequest.of(pageNumber, pageSize);
 
-        return this.postsRepository.findPostsNearbyUser(pointWKT, username, pageable).toList();
+        return this.postsRepository.findPostsNearbyUser(pointWKT, username, pageable);
     }
 
-    public List<Post> findPostsByFollowedUsers(String username, int pageNumber) {
+    public Page<Post> findPostsByFollowedUsers(String username, int pageNumber) {
         Pageable pageable = PageRequest.of(pageNumber, pageSize);
 
-        return this.postsRepository.findPostsByFollowedUsers(username, pageable).toList();
-    }
-
-    public boolean hasMoreNearbyPosts(String username, int pageNumber) {
-        return this.postsRepository.countNearbyPosts(username) > (pageNumber + 1) * pageSize;
-    }
-
-    public boolean hasMorePostsByFollowedUsers(String username, int pageNumber) {
-        return this.postsRepository.countPostsByFollowedUsers(username) > (pageNumber + 1) * pageSize;
+        return this.postsRepository.findPostsByFollowedUsers(username, pageable);
     }
 
     public void likePost(Long postId, String username) throws AlreadyLikedPostException, PostNotFoundException {
@@ -102,6 +95,9 @@ public class PostsService {
 
         if (requiredPost.isEmpty()) throw new PostNotFoundException("Post not found!");
 
+        Post post = requiredPost.get();
+        post.setLikesCount(post.getLikesCount() - 1);
+        this.postsRepository.save(post);
         this.likesRepository.deleteByUsernameAndPostId(username, postId);
     }
 

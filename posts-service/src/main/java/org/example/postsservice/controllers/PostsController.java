@@ -13,12 +13,12 @@ import org.example.postsservice.exceptions.AlreadyLikedPostException;
 import org.example.postsservice.exceptions.PostNotFoundException;
 import org.example.postsservice.models.Post;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -88,18 +88,16 @@ public class PostsController {
                                             @RequestParam(name="page") int pageNumber) {
         System.out.println("Nearby posts request: " + latitude + " " + longitude + " " + username + " " + pageNumber);
 
-        List<Post> foundPosts = this.postsService.findNearbyPosts(username, latitude, longitude, pageNumber);
-        boolean hasMore = this.postsService.hasMoreNearbyPosts(username, pageNumber);
+        Page<Post> foundPosts = this.postsService.findNearbyPosts(username, latitude, longitude, pageNumber);
 
-        return ResponseEntity.ok(new PostsListResponse(foundPosts, hasMore));
+        return ResponseEntity.ok(new PostsListResponse(foundPosts.getContent(), foundPosts.hasNext()));
     }
 
     @GetMapping("/followed")
     public ResponseEntity<PostsListResponse> getPostsByFollowedUsers(@RequestParam String username, @RequestParam int page) {
-        List<Post> foundPosts = this.postsService.findPostsByFollowedUsers(username, page);
-        boolean hasMore = this.postsService.hasMorePostsByFollowedUsers(username, page);
+        Page<Post> foundPosts = this.postsService.findPostsByFollowedUsers(username, page);
 
-        return ResponseEntity.ok(new PostsListResponse(foundPosts, hasMore));
+        return ResponseEntity.ok(new PostsListResponse(foundPosts.getContent(), foundPosts.hasNext()));
     }
 
     @PostMapping("/like")

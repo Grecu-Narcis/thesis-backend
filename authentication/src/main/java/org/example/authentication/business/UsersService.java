@@ -18,7 +18,7 @@ public class UsersService {
     private final UsersRepository usersRepository;
     private final PasswordEncoder passwordEncoder;
 
-    private final int pageSize = 30;
+    static int pageSize = 30;
 
     @Autowired
     public UsersService(UsersRepository usersRepository, PasswordEncoder passwordEncoder) {
@@ -55,12 +55,8 @@ public class UsersService {
         return this.usersRepository.findAll().stream().map(User::getUsername).toList();
     }
 
-    public List<User> getUsersByUsername(String searchKey, int page) {
-        Pageable pageable = PageRequest.of(page, this.pageSize);
-        return usersRepository.findByUsernameContainingIgnoreCase(searchKey, pageable).toList();
-    }
-
-    public boolean hasMoreUsers(String searchKey, int page) {
-        return usersRepository.countByUsernameContainingIgnoreCase(searchKey) > (page + 1) * this.pageSize;
+    public Page<User> getUsersByUsername(String searchKey, int page) {
+        Pageable pageable = PageRequest.of(page, UsersService.pageSize);
+        return usersRepository.findByUsernameContainingIgnoreCase(searchKey, pageable);
     }
 }

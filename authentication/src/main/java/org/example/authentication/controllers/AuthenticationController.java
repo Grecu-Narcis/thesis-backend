@@ -1,14 +1,15 @@
 package org.example.authentication.controllers;
 
-import jakarta.websocket.server.PathParam;
 import org.example.authentication.business.UserLocationService;
 import org.example.authentication.business.UsersNotificationTokenService;
 import org.example.authentication.business.UsersService;
 import org.example.authentication.dto.*;
 import org.example.authentication.exceptions.UserNotFoundException;
+import org.example.authentication.models.User;
 import org.example.authentication.models.UserNotificationToken;
 import org.example.authentication.utils.JWTUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -94,13 +95,12 @@ public class AuthenticationController {
     @GetMapping("/users")
     public ResponseEntity<?> getUsersByUsername(@RequestParam String searchKey,
                                                           @RequestParam int page) {
-        List<UserResponseDTO> users = this.usersService.getUsersByUsername(searchKey, page)
-                .stream()
+        Page<User> usersPage = this.usersService.getUsersByUsername(searchKey, page);
+        List<UserResponseDTO> users = usersPage.stream()
                 .map(user -> new UserResponseDTO(user.getUsername(), user.getFullName()))
                 .toList();
 
-        boolean hasMore = this.usersService.hasMoreUsers(searchKey, page);
 
-        return ResponseEntity.ok(new UsersListResponse(users, hasMore));
+        return ResponseEntity.ok(new UsersListResponse(users, usersPage.hasNext()));
     }
 }
