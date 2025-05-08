@@ -1,1 +1,4 @@
 yolo*
+*.idea
+*.venv
+__pycache__

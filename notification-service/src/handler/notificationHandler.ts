@@ -1,11 +1,16 @@
 import { SQSEvent } from "aws-lambda";
+import { NotificationFactory } from "../factory/NotificationFactory";
 
 exports.handler = async (event: SQSEvent) => {
   const notificationsToSend = [];
   for (const record of event.Records) {
     const body = JSON.parse(record.body);
+    console.log("------------------------");
+    console.log("parsing: " + JSON.stringify(body));
 
-    notificationsToSend.push(convertToExpoNotification(body));
+    const notification = NotificationFactory.create(body).build();
+
+    notificationsToSend.push(notification);
   }
 
   console.log(notificationsToSend);
@@ -13,21 +18,6 @@ exports.handler = async (event: SQSEvent) => {
 
   return {};
 };
-
-function convertToExpoNotification(record: any) {
-  const token = record.destinationToken;
-  const postId = record.postId;
-  const createdBy = record.createdBy;
-
-  return {
-    to: token,
-    title: "New spot around!",
-    body: `${createdBy} spotted a new car around you!`,
-    data: {
-      postId: postId,
-    },
-  };
-}
 
 async function sendNotifications(notificationToSend: any[]) {
   try {

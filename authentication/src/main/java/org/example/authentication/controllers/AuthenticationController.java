@@ -60,9 +60,7 @@ public class AuthenticationController {
             response.put("token", token);
 
             return ResponseEntity.ok(response);
-        }
-
-        catch (UserNotFoundException e) {
+        } catch (UserNotFoundException e) {
             return ResponseEntity.badRequest().body("Invalid username or password!");
         }
     }
@@ -94,13 +92,26 @@ public class AuthenticationController {
 
     @GetMapping("/users")
     public ResponseEntity<?> getUsersByUsername(@RequestParam String searchKey,
-                                                          @RequestParam int page) {
-        Page<User> usersPage = this.usersService.getUsersByUsername(searchKey, page);
+                                                @RequestParam String username,
+                                                @RequestParam int page) {
+        Page<User> usersPage = this.usersService.getUsersByUsername(searchKey, username, page);
         List<UserResponseDTO> users = usersPage.stream()
                 .map(user -> new UserResponseDTO(user.getUsername(), user.getFullName()))
                 .toList();
 
 
         return ResponseEntity.ok(new UsersListResponse(users, usersPage.hasNext()));
+    }
+
+    // TODO: move to another controller
+    @GetMapping("/notification-token/{username}")
+    public ResponseEntity<?> getNotificationToken(@PathVariable String username) {
+        System.out.println("Getting token for user: " + username);
+        try {
+            String token = this.usersNotificationTokenService.getUserNotificationToken(username);
+            return ResponseEntity.ok(token);
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }

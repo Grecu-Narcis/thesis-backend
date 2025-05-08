@@ -6,6 +6,7 @@ from flask_cors import CORS
 from Classifier import Classifier
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 CORS(app)
 
 classifier = Classifier()
@@ -33,17 +34,22 @@ def classify_image():
     if not image_data:
         return jsonify({"error": "No image data provided"}), 400
 
-    image_file = io.BytesIO(image_data)
-
-    # Open the image using PIL
     try:
+        image_file = io.BytesIO(image_data)
         image = Image.open(image_file)
         image = ImageOps.exif_transpose(image)
     except Exception as e:
+        print('first exception', e)
         return jsonify({'error': f"Error opening image: {str(e)}"}), 500
 
-    contains_car = classifier.detect_car(image)
-    brand, model, year = classifier.make_prediction(image) if contains_car else (None, None, None)
+    try:
+        contains_car = classifier.detect_car(image)
+        if contains_car:
+            brand, model, year = classifier.make_prediction(image)
+        else:
+            brand, model, year = (None, None, None)
+    except Exception as e:
+        return jsonify({'error': f"Error during classification: {str(e)}"}), 500
 
     return jsonify({"contains_car": contains_car, "brand": brand, "model": model, "year": year})
 

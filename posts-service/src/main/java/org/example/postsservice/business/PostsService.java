@@ -7,6 +7,7 @@ import org.example.postsservice.models.Post;
 import org.example.postsservice.models.likes.Like;
 import org.example.postsservice.repositories.LikesRepository;
 import org.example.postsservice.repositories.PostsRepository;
+import org.example.postsservice.utils.Logger;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
@@ -14,10 +15,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -26,14 +27,17 @@ public class PostsService {
     private final PostsRepository postsRepository;
     private final LikesRepository likesRepository;
     private final GeometryFactory geometryFactory;
+    private final PostsNotificationService postsNotificationService;
 
-    private final int SRID = 4326;
-    private final int pageSize = 30;
+    static int SRID = 4326;
+    static int pageSize = 30;
 
     @Autowired
-    public PostsService(PostsRepository postsRepository, LikesRepository likesRepository) {
+    public PostsService(PostsRepository postsRepository, LikesRepository likesRepository,
+                        PostsNotificationService postsNotificationService) {
         this.postsRepository = postsRepository;
         this.likesRepository = likesRepository;
+        this.postsNotificationService = postsNotificationService;
         this.geometryFactory = new GeometryFactory();
     }
 
@@ -42,13 +46,14 @@ public class PostsService {
                         String carBrand, String carModel, int productionYear) throws AddPostException {
         try {
             Point postLocation = this.geometryFactory.createPoint(new Coordinate(longitude, latitude));
-            postLocation.setSRID(this.SRID);
+            postLocation.setSRID(PostsService.SRID);
 
             Post postToAdd = new Post(imageKey, createdBy, description, postLocation, carBrand, carModel, productionYear);
 
             return this.postsRepository.save(postToAdd);
         }
         catch (Exception e) {
+            Logger.logError("Failed to add post: " + e.getMessage());
             throw new AddPostException("Failed to add post!");
         }
     }
@@ -64,15 +69,21 @@ public class PostsService {
 
     public Page<Post> findNearbyPosts(String username, double latitude, double longitude, int pageNumber) {
         String pointWKT = String.format(Locale.US, "POINT(%f %f)", latitude, longitude);
-        Pageable pageable = PageRequest.of(pageNumber, pageSize);
+        Pageable pageable = PageRequest.of(pageNumber, PostsService.pageSize);
 
         return this.postsRepository.findPostsNearbyUser(pointWKT, username, pageable);
     }
 
     public Page<Post> findPostsByFollowedUsers(String username, int pageNumber) {
-        Pageable pageable = PageRequest.of(pageNumber, pageSize);
+        Pageable pageable = PageRequest.of(pageNumber, PostsService.pageSize);
 
         return this.postsRepository.findPostsByFollowedUsers(username, pageable);
+    }
+
+    public Page<Post> findPostsByUsername(String username, int pageNumber) {
+        Pageable pageable = PageRequest.of(pageNumber, PostsService.pageSize, Sort.by("createdAt").descending());
+
+        return this.postsRepository.findPostsByCreatedBy(username, pageable);
     }
 
     public void likePost(Long postId, String username) throws AlreadyLikedPostException, PostNotFoundException {
@@ -87,6 +98,7 @@ public class PostsService {
 
         this.postsRepository.save(post);
         this.likesRepository.save(new Like(username, postId));
+        this.postsNotificationService.notifyNewLike(postId, username, post.getCreatedBy());
     }
 
     @Transactional
@@ -103,5 +115,9 @@ public class PostsService {
 
     public boolean isLikedByUser(Long postId, String username) {
         return this.likesRepository.existsByUsernameAndPostId(username, postId);
+    }
+
+    public int countPostsByUser(String username) {
+        return this.postsRepository.countByCreatedBy(username);
     }
 }

@@ -11,53 +11,38 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PostsRepository extends JpaRepository<Post, Long> {
+    int countByCreatedBy(String createdBy);
+
     @Query(value = """ 
             SELECT * FROM posts
             WHERE createdBy <> :username
             ORDER BY ST_Distance_Sphere(location, ST_GeomFromText(:point, 4326))
-            """,
-            countQuery = """
+            """, countQuery = """
             SELECT COUNT(*) FROM posts
             WHERE createdBy <> :username
-            """,
-            nativeQuery = true)
+            """, nativeQuery = true)
     Page<Post> findPostsNearbyUser(@Param("point") String point, @Param("username") String username, Pageable pageable);
 
     @Query(value = """ 
-            SELECT COUNT(*) FROM posts
-            WHERE createdBy <> :username
-            """,
-            nativeQuery = true)
-    int countNearbyPosts(@Param("username") String username);
-
-    @Query(value = """ 
             SELECT * FROM posts
+            INNER JOIN follows on posts.createdBy = follows.followed_user
+            WHERE follows.following_user = :username
             ORDER BY createdAt DESC
-            """,
-            countQuery = """
+            """, countQuery = """
             SELECT COUNT(*) FROM posts
-            """,
-            nativeQuery = true)
+            INNER JOIN follows on posts.createdBy = follows.followed_user
+            WHERE follows.following_user = :username
+            """, nativeQuery = true)
     Page<Post> findPostsByFollowedUsers(@Param("username") String username, Pageable pageable);
 
-    @Query(value = """ 
-            SELECT COUNT(*) FROM posts
-            WHERE createdBy <> :username
-            """,
-            nativeQuery = true)
-    int countPostsByFollowedUsers(@Param("username") String username);
 
     @Query(value = """
-    SELECT token
-    FROM users_notification_token
-    INNER JOIN user_location on user_location.username = users_notification_token.username
-    WHERE ST_Distance_Sphere(user_location.location, ST_GeomFromText(:point, 4326)) <= :distance AND user_location.username <> :username
-    """,
-    nativeQuery = true)
-    Page<String> findNearbyUsersNotificationTokens(
-            @Param("point") String point,
-            @Param("username") String username,
-            @Param("distance") int distance,
-            Pageable pageable
-    );
+            SELECT token
+            FROM users_notification_token
+            INNER JOIN user_location on user_location.username = users_notification_token.username
+            WHERE ST_Distance_Sphere(user_location.location, ST_GeomFromText(:point, 4326)) <= :distance AND user_location.username <> :username
+            """, nativeQuery = true)
+    Page<String> findNearbyUsersNotificationTokens(@Param("point") String point, @Param("username") String username, @Param("distance") int distance, Pageable pageable);
+
+    Page<Post> findPostsByCreatedBy(String username, Pageable pageable);
 }

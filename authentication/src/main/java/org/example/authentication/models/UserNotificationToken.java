@@ -3,12 +3,10 @@ package org.example.authentication.models;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
+import lombok.*;
 
 @Setter
+@Getter
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor

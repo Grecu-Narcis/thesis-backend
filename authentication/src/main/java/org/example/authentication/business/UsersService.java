@@ -55,8 +55,8 @@ public class UsersService {
         return this.usersRepository.findAll().stream().map(User::getUsername).toList();
     }
 
-    public Page<User> getUsersByUsername(String searchKey, int page) {
+    public Page<User> getUsersByUsername(String searchKey, String username, int page) {
         Pageable pageable = PageRequest.of(page, UsersService.pageSize);
-        return usersRepository.findByUsernameContainingIgnoreCase(searchKey, pageable);
+        return usersRepository.findByUsernameContainingIgnoreCase(searchKey, username, pageable);
     }
 }

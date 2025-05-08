@@ -1,13 +1,17 @@
 package org.example.postsservice.business;
 
 import org.example.postsservice.models.PostCreatedNotification;
+import org.example.postsservice.models.likes.LikeNotification;
 import org.example.postsservice.repositories.PostsRepository;
+import org.example.postsservice.utils.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -16,61 +20,63 @@ import java.util.function.Consumer;
 public class PostsNotificationService {
     private final PostsRepository postsRepository;
     private final SqsService sqsService;
+    private final RestTemplate restTemplate;
     static int maximumDistanceInMeters = 500;
     static int pageSize = 30;
 
     @Autowired
-    public PostsNotificationService(PostsRepository postsRepository, SqsService sqsService) {
+    public PostsNotificationService(PostsRepository postsRepository, SqsService sqsService, RestTemplate restTemplate) {
         this.postsRepository = postsRepository;
         this.sqsService = sqsService;
+        this.restTemplate = restTemplate;
     }
 
     @Async
-    public void notifyPostAdded(Long postId, String createdBy, double latitude, double longitude,
-                                String carBrand, String carModel, int productionYear) {
-        String pointWKT = String.format(Locale.US, "POINT(%f %f)", latitude, longitude);
+    public void notifyNewLike(Long postId, String likedBy, String postCreator) {
+        try {
+            String token = getNotificationToken(postCreator);
 
-        paginateNearbyUserTokens(
-                pointWKT,
-                createdBy,
-                PostsNotificationService.maximumDistanceInMeters,
-                PostsNotificationService.pageSize,
-                tokensPage -> processPageOfTokens(postId, createdBy, carBrand, carModel, productionYear, tokensPage)
-        );
+            LikeNotification notification = new LikeNotification(postId, likedBy, token);
+            this.sqsService.sendLikeNotification(notification);
+        } catch (Exception e) {
+            Logger.logError("Failed to get notification token for user: " + postCreator);
+        }
     }
 
-    private void paginateNearbyUserTokens(
-            String pointWKT,
-            String createdBy,
-            int maxDistanceInMeters,
-            int pageSize,
-            Consumer<Page<String>> pageProcessor) {
+    public String getNotificationToken(String username) throws Exception {
+        String url = "http://localhost:8080/api/auth/notification-token/" + username;
+        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
 
+        if (response.getStatusCode().is2xxSuccessful()) {
+            return response.getBody();
+        } else {
+            throw new Exception("Failed to get notification token for user: " + username);
+        }
+
+    }
+
+    @Async
+    public void notifyPostAdded(Long postId, String createdBy, double latitude, double longitude, String carBrand, String carModel, int productionYear) {
+        String pointWKT = String.format(Locale.US, "POINT(%f %f)", latitude, longitude);
+
+        paginateNearbyUserTokens(pointWKT, createdBy, PostsNotificationService.maximumDistanceInMeters, PostsNotificationService.pageSize, tokensPage -> processPageOfTokens(postId, createdBy, carBrand, carModel, productionYear, tokensPage));
+    }
+
+    private void paginateNearbyUserTokens(String pointWKT, String createdBy, int maxDistanceInMeters, int pageSize, Consumer<Page<String>> pageProcessor) {
         Pageable pageable = PageRequest.of(0, pageSize);
         Page<String> tokensPage;
 
         do {
-            tokensPage = postsRepository.findNearbyUsersNotificationTokens(
-                    pointWKT, createdBy, maxDistanceInMeters, pageable
-            );
+            tokensPage = postsRepository.findNearbyUsersNotificationTokens(pointWKT, createdBy, maxDistanceInMeters, pageable);
 
             pageProcessor.accept(tokensPage);
             pageable = tokensPage.nextPageable();
         } while (tokensPage.hasNext());
     }
 
-    public void processPageOfTokens(Long postId, String createdBy, String carBrand, String carModel,
-            int productionYear, Page<String> usersTokensPage)
-    {
+    public void processPageOfTokens(Long postId, String createdBy, String carBrand, String carModel, int productionYear, Page<String> usersTokensPage) {
         for (String token : usersTokensPage.getContent()) {
-            PostCreatedNotification notification = new PostCreatedNotification(
-                    postId,
-                    createdBy,
-                    carBrand,
-                    carModel,
-                    productionYear,
-                    token
-            );
+            PostCreatedNotification notification = new PostCreatedNotification(postId, createdBy, carBrand, carModel, productionYear, token);
 
             this.sqsService.sendPostCreatedNotification(notification);
         }

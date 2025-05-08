@@ -12,6 +12,7 @@ import org.example.postsservice.exceptions.AddPostException;
 import org.example.postsservice.exceptions.AlreadyLikedPostException;
 import org.example.postsservice.exceptions.PostNotFoundException;
 import org.example.postsservice.models.Post;
+import org.example.postsservice.utils.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -42,6 +43,8 @@ public class PostsController {
 
     @GetMapping(path = "/presignedUrl")
     public ResponseEntity<?> generatePresignedUrl(@RequestParam String type, @RequestParam String key) {
+        Logger.log("Generating presigned URL for key: " + key);
+
         String generatedUrl = this.s3Service.createPresignedUrl(
                 "car-spot-bucket",
                 key,
@@ -57,15 +60,21 @@ public class PostsController {
 
     @GetMapping("/{postId}")
     public ResponseEntity<?> getPost(@PathVariable Long postId) {
+        Logger.log("Getting post with ID: " + postId);
+
         try {
             return ResponseEntity.ok(this.postsService.getById(postId));
         } catch (Exception e) {
+            Logger.log("Error getting post with ID: " + postId);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Post not found!");
         }
     }
 
     @PostMapping(path = "")
     public ResponseEntity<?> addPost(@RequestBody AddPostDTO postDTO) {
+        Logger.log("Adding post: " + postDTO.getImageKey() + " " + postDTO.getCreatedBy() + " " +
+                postDTO.getDescription() + " " + postDTO.getLatitude() + " " + postDTO.getLongitude());
+
         try {
             Post createdPost = this.postsService.addPost(postDTO.getImageKey(), postDTO.getCreatedBy(),
                     postDTO.getDescription(), postDTO.getLatitude(), postDTO.getLongitude(),
@@ -76,7 +85,7 @@ public class PostsController {
 
             return ResponseEntity.status(HttpStatus.CREATED).body(createdPost);
         } catch (AddPostException e) {
-            log.error(e.getMessage());
+            Logger.log("Error adding post: " + e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
@@ -86,7 +95,7 @@ public class PostsController {
                                             @RequestParam double longitude,
                                             @RequestParam String username,
                                             @RequestParam(name="page") int pageNumber) {
-        System.out.println("Nearby posts request: " + latitude + " " + longitude + " " + username + " " + pageNumber);
+        Logger.log("Getting nearby posts for user: " + username + " latitude: " + latitude + " longitude: " + longitude);
 
         Page<Post> foundPosts = this.postsService.findNearbyPosts(username, latitude, longitude, pageNumber);
 
@@ -95,20 +104,34 @@ public class PostsController {
 
     @GetMapping("/followed")
     public ResponseEntity<PostsListResponse> getPostsByFollowedUsers(@RequestParam String username, @RequestParam int page) {
+        Logger.log("Getting posts by followed users for user: " + username + " page: " + page);
+
         Page<Post> foundPosts = this.postsService.findPostsByFollowedUsers(username, page);
+
+        return ResponseEntity.ok(new PostsListResponse(foundPosts.getContent(), foundPosts.hasNext()));
+    }
+
+    @GetMapping("/user/{username}")
+    public ResponseEntity<PostsListResponse> getPostsByUsername(@PathVariable String username, @RequestParam int page) {
+        Logger.log("Getting posts by user: " + username + " page: " + page);
+
+        Page<Post> foundPosts = this.postsService.findPostsByUsername(username, page);
 
         return ResponseEntity.ok(new PostsListResponse(foundPosts.getContent(), foundPosts.hasNext()));
     }
 
     @PostMapping("/like")
     public ResponseEntity<?> likePost(@RequestBody LikePostDTO likePostDTO) {
+        Logger.log("Liking post: " + likePostDTO.getPostId() + " username: " + likePostDTO.getUsername());
+
         try {
             this.postsService.likePost(likePostDTO.getPostId(), likePostDTO.getUsername());
-            System.out.println("Liked post: " + likePostDTO.getPostId() + " username: " + likePostDTO.getUsername());
             return ResponseEntity.ok("Liked post");
         } catch (AlreadyLikedPostException e) {
+            Logger.logError("Post already liked by this user!");
             return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (PostNotFoundException e) {
+            Logger.logError("Post not found!");
             return ResponseEntity.notFound().build();
         }
     }
@@ -116,11 +139,13 @@ public class PostsController {
     @DeleteMapping("/like/{postId}/{username}")
     public ResponseEntity<?> unlikePost(@PathVariable Long postId,
                                         @PathVariable String username) {
+        Logger.log("Unliking post: " + postId + " username: " + username);
+
         try {
-            System.out.println("Unliked post: " + postId + " username: " + username);
             this.postsService.unlikePost(postId, username);
             return ResponseEntity.noContent().build();
         } catch (PostNotFoundException e) {
+            Logger.logError("Post not found!");
             return ResponseEntity.notFound().build();
         }
     }
@@ -128,12 +153,17 @@ public class PostsController {
     @GetMapping("/liked/{postId}/{username}")
     public ResponseEntity<?> isPostLiked(@PathVariable Long postId,
                                          @PathVariable String username) {
+        Logger.log("Checking if post is liked: " + postId + " username: " + username);
+
         return ResponseEntity.ok(this.postsService.isLikedByUser(postId, username));
     }
 
-    @GetMapping("/demo")
-    public ResponseEntity<?> demo() {
-        this.sqsService.sendMessage("Hello from the demo endpoint!");
-        return ResponseEntity.ok("Demo endpoint");
+    @GetMapping("/count/{username}")
+    public ResponseEntity<?> getPostsCount(@PathVariable String username) {
+        Logger.log("Count posts request: " + username);
+
+        int count = this.postsService.countPostsByUser(username);
+
+        return ResponseEntity.ok(Map.of("count", count));
     }
 }
