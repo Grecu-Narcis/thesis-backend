@@ -71,7 +71,7 @@
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt</artifactId>
-			<version>LATEST</version>
+			<version>0.12.6</version>
 		</dependency>
 
 		<dependency>
@@ -80,7 +80,7 @@
 		</dependency>
 
 		<dependency>
-			<groupId>org.hibernate</groupId>
+			<groupId>org.hibernate.orm</groupId>
 			<artifactId>hibernate-spatial</artifactId>
 			<version>6.4.2.Final</version>
 		</dependency>
