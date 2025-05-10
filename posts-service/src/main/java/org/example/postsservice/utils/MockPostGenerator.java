@@ -25,7 +25,7 @@ public class MockPostGenerator {
     private final GeometryFactory geometryFactory = new GeometryFactory();
     private final Random random = new Random();
 
-    private final int MOCK_POST_COUNT = 10000;
+    static int MOCK_POST_COUNT = 10000;
 
     public MockPostGenerator(PostsRepository postRepository, RestTemplate restTemplate) {
         this.postRepository = postRepository;
@@ -34,7 +34,7 @@ public class MockPostGenerator {
 
     @PostConstruct
     public void generateMockPosts() {
-        if (postRepository.count() > MOCK_POST_COUNT) return;
+        if (postRepository.count() >= MOCK_POST_COUNT) return;
 
         List<String> usernames = fetchUsernamesFromUserService();
         List<BrandModelPair> carData = loadCarBrandModels();
@@ -77,10 +77,10 @@ public class MockPostGenerator {
 
     private List<String> fetchUsernamesFromUserService() {
         try {
-            String url = "http://localhost:8080/api/auth/usernames"; // Replace with real endpoint
+            String url = "http://localhost:8080/api/auth/usernames";
             return restTemplate.getForObject(url, List.class);
         } catch (Exception e) {
-            e.printStackTrace();
+            Logger.logError(e.getMessage());
             return Collections.emptyList();
         }
     }
@@ -89,9 +89,10 @@ public class MockPostGenerator {
         try {
             ObjectMapper mapper = new ObjectMapper();
             InputStream inputStream = getClass().getClassLoader().getResourceAsStream("clear_data.json");
-            return mapper.readValue(inputStream, new TypeReference<List<BrandModelPair>>() {});
+            return mapper.readValue(inputStream, new TypeReference<>() {
+            });
         } catch (Exception e) {
-            e.printStackTrace();
+            Logger.logError(e.getMessage());
             return Collections.emptyList();
         }
     }

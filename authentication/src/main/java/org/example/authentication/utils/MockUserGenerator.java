@@ -19,7 +19,7 @@ public class MockUserGenerator {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final Faker faker = new Faker(new Locale("en-US"));
 
-    private final int MOCK_USER_COUNT = 100;
+    static int MOCK_USER_COUNT = 100;
 
     public MockUserGenerator(UsersRepository userRepository) {
         this.userRepository = userRepository;
@@ -27,7 +27,7 @@ public class MockUserGenerator {
 
     @PostConstruct
     public void generateMockUsers() {
-        if (userRepository.count() > MOCK_USER_COUNT) return;
+        if (userRepository.count() >= MOCK_USER_COUNT) return;
 
         List<User> mockUsers = new ArrayList<>();
 

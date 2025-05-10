@@ -30,14 +30,12 @@ public class PostsController {
     private final S3Service s3Service;
     private final PostsService postsService;
     private final PostsNotificationService postsNotificationService;
-    private final SqsService sqsService;
 
     @Autowired
     public PostsController(S3Service s3Service, PostsService postsService,
-                           PostsNotificationService postsNotificationService, SqsService sqsService) {
+                           PostsNotificationService postsNotificationService) {
         this.s3Service = s3Service;
         this.postsService = postsService;
-        this.sqsService = sqsService;
         this.postsNotificationService = postsNotificationService;
     }
 

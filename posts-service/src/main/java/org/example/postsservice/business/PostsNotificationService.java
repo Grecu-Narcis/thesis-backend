@@ -5,6 +5,7 @@ import org.example.postsservice.models.likes.LikeNotification;
 import org.example.postsservice.repositories.PostsRepository;
 import org.example.postsservice.utils.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +24,9 @@ public class PostsNotificationService {
     private final RestTemplate restTemplate;
     static int maximumDistanceInMeters = 500;
     static int pageSize = 30;
+
+    @Value("${app.users.service.url}")
+    private String usersServiceUrl;
 
     @Autowired
     public PostsNotificationService(PostsRepository postsRepository, SqsService sqsService, RestTemplate restTemplate) {
@@ -44,7 +48,7 @@ public class PostsNotificationService {
     }
 
     public String getNotificationToken(String username) throws Exception {
-        String url = "http://localhost:8080/api/auth/notification-token/" + username;
+        String url = this.usersServiceUrl + "/api/auth/notification-token/" + username;
         ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
 
         if (response.getStatusCode().is2xxSuccessful()) {
