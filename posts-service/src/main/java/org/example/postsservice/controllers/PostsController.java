@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.postsservice.business.PostsNotificationService;
 import org.example.postsservice.business.PostsService;
 import org.example.postsservice.business.S3Service;
-import org.example.postsservice.business.SqsService;
 import org.example.postsservice.dto.AddPostDTO;
 import org.example.postsservice.dto.LikePostDTO;
 import org.example.postsservice.dto.PostsListResponse;
@@ -163,5 +162,15 @@ public class PostsController {
         int count = this.postsService.countPostsByUser(username);
 
         return ResponseEntity.ok(Map.of("count", count));
+    }
+
+    @GetMapping("/heatmap")
+    public ResponseEntity<?> getPostsForHeatMap(@RequestParam double minLat,
+                                                @RequestParam double maxLat,
+                                                @RequestParam double minLon,
+                                                @RequestParam double maxLon) {
+        Logger.log("Getting posts for heatmap: " + minLat + " " + maxLat + " " + minLon + " " + maxLon);
+
+        return ResponseEntity.ok(this.postsService.getPostsForHeatMap(minLat, maxLat, minLon, maxLon));
     }
 }
