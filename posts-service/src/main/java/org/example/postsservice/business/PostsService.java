@@ -1,5 +1,6 @@
 package org.example.postsservice.business;
 
+import org.example.postsservice.dto.HeatMapPostDTO;
 import org.example.postsservice.exceptions.AddPostException;
 import org.example.postsservice.exceptions.AlreadyLikedPostException;
 import org.example.postsservice.exceptions.PostNotFoundException;
@@ -19,6 +20,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -119,5 +121,9 @@ public class PostsService {
 
     public int countPostsByUser(String username) {
         return this.postsRepository.countByCreatedBy(username);
+    }
+
+    public List<HeatMapPostDTO> getPostsForHeatMap(double minLat, double maxLat, double minLon, double maxLon) {
+        return this.postsRepository.findPostsForHeatMap(minLat, maxLat, minLon, maxLon);
     }
 }
