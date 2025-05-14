@@ -2,7 +2,7 @@ import * as AWS from "aws-sdk";
 
 const dynamoDB = new AWS.DynamoDB.DocumentClient();
 const tableName = process.env.CHAT_DATA_TABLE!;
-const pageSize = 30;
+const pageSize = 20;
 
 export const handler = async (event: any) => {
   const username = event.pathParameters.username;

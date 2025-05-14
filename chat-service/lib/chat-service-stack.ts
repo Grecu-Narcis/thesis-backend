@@ -16,6 +16,12 @@ export class ChatServiceStack extends cdk.Stack {
       "ChatData"
     );
 
+    const connectionsTable = dynamodb.Table.fromTableName(
+      this,
+      "ConnectionsTable",
+      "WebSocketConnections"
+    );
+
     // Lambda for retrieving chats
     const getChatsForUser = new NodejsFunction(this, "GetChatsForUserHandler", {
       runtime: Runtime.NODEJS_20_X,
@@ -38,6 +44,17 @@ export class ChatServiceStack extends cdk.Stack {
         },
       }
     );
+
+    const markAsSeen = new NodejsFunction(this, "MarkAsSeenHandler", {
+      runtime: Runtime.NODEJS_20_X,
+      entry: "src/handlers/markAsSeen.ts",
+      handler: "handler",
+      environment: {
+        CHAT_DATA_TABLE: chatDataTable.tableName,
+      },
+    });
+
+    chatDataTable.grantWriteData(markAsSeen);
 
     chatDataTable.grantReadData(getChatsForUser);
 
@@ -70,6 +87,13 @@ export class ChatServiceStack extends cdk.Stack {
       .addResource("messages")
       .addResource("{user1}")
       .addResource("{user2}");
+
+    // POST /chats/markAsSeen
+    const markAsSeenResource = api.root.addResource("markAsSeen");
+    markAsSeenResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(markAsSeen)
+    );
 
     messages.addMethod(
       "GET",

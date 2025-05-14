@@ -33,6 +33,7 @@ export const handler = async (event: any) => {
       message,
       timestamp,
       chatId,
+      action: "newMessage",
     });
   } catch (error) {
     console.error("Failed to send WebSocket message:", error);
@@ -68,6 +69,9 @@ async function saveMessageToDynamoDB(
     chatId,
     otherUser: to,
     lastMessageSentTimestamp: timestamp,
+    seenTimestamp: timestamp,
+    messageBody: message,
+    lastSender: from,
     GSI1PK: `USER#${from}`,
     GSI1SK: timestamp,
   };
@@ -78,6 +82,9 @@ async function saveMessageToDynamoDB(
     chatId,
     otherUser: from,
     lastMessageSentTimestamp: timestamp,
+    seenTimestamp: 0,
+    messageBody: message,
+    lastSender: from,
     GSI1PK: `USER#${to}`,
     GSI1SK: timestamp,
   };
