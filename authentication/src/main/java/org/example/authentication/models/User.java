@@ -32,6 +32,12 @@ public class User {
     @Column(name="createdAt", nullable = false)
     private Date createdAt;
 
+    @Column(name="profile_image")
+    private String profileImage;
+
+    @Column(name="bio")
+    private String bio;
+
     public User(String username, String fullName, String email, String password) {
         this.username = username;
         this.fullName = fullName;

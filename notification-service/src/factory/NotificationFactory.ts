@@ -1,6 +1,7 @@
 import { CommentNotification } from "../types/CommentNotification";
 import { FollowNotification } from "../types/FollowNotification";
 import { LikeNotification } from "../types/LikeNotification";
+import { MessageNotification } from "../types/MessageNotification";
 import { NewSpotNotification } from "../types/NewPostNotification";
 import { Notification } from "../types/Notification";
 
@@ -15,6 +16,8 @@ export class NotificationFactory {
         return new LikeNotification(record);
       case "NEW_FOLLOW":
         return new FollowNotification(record);
+      case "NEW_MESSAGE":
+        return new MessageNotification(record);
       default:
         throw new Error(
           `Unsupported notification type: ${record.notificationType}`

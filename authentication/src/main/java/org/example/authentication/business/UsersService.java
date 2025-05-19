@@ -32,13 +32,27 @@ public class UsersService {
         usersRepository.save(user);
     }
 
-    private User getUser(String username) throws UserNotFoundException {
+    public User getUser(String username) throws UserNotFoundException {
         Optional<User> user = usersRepository.findByUsername(username);
 
         if (user.isEmpty())
             throw new UserNotFoundException("User not found!");
 
         return user.get();
+    }
+
+    public void updateUserProfileImage(String username, String imageKey) throws UserNotFoundException {
+        User requiredUser = this.getUser(username);
+
+        requiredUser.setProfileImage(imageKey);
+        usersRepository.save(requiredUser);
+    }
+
+    public void updateUserBio(String username, String bioKey) throws UserNotFoundException {
+        User requiredUser = this.getUser(username);
+
+        requiredUser.setBio(bioKey);
+        usersRepository.save(requiredUser);
     }
 
     public boolean validateUserCredentials(String username, String password) throws UserNotFoundException {

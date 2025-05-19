@@ -27,17 +27,16 @@ public interface PostsRepository extends JpaRepository<Post, Long> {
     Page<Post> findPostsNearbyUser(@Param("point") String point, @Param("username") String username, Pageable pageable);
 
     @Query(value = """ 
-            SELECT * FROM posts
-            INNER JOIN follows on posts.createdBy = follows.followed_user
-            WHERE follows.following_user = :username
-            ORDER BY createdAt DESC
-            """, countQuery = """
-            SELECT COUNT(*) FROM posts
-            INNER JOIN follows on posts.createdBy = follows.followed_user
-            WHERE follows.following_user = :username
-            """, nativeQuery = true)
+        SELECT * FROM posts
+        INNER JOIN follows on posts.createdBy = follows.followed_user
+        WHERE follows.following_user = :username
+        ORDER BY createdAt DESC, postId DESC
+        """, countQuery = """
+        SELECT COUNT(*) FROM posts
+        INNER JOIN follows on posts.createdBy = follows.followed_user
+        WHERE follows.following_user = :username
+        """, nativeQuery = true)
     Page<Post> findPostsByFollowedUsers(@Param("username") String username, Pageable pageable);
-
 
     @Query(value = """
             SELECT token
@@ -50,13 +49,13 @@ public interface PostsRepository extends JpaRepository<Post, Long> {
     Page<Post> findPostsByCreatedBy(String username, Pageable pageable);
 
     @Query(value = """
-  SELECT
-    ST_X(location) AS latitude,
-    ST_Y(location) AS longitude
-  FROM posts
-  WHERE
-    ST_X(location) BETWEEN :minLat AND :maxLat
-    AND ST_Y(location) BETWEEN :minLon AND :maxLon
+      SELECT
+        ST_X(location) AS latitude,
+        ST_Y(location) AS longitude
+      FROM posts
+      WHERE
+        ST_X(location) BETWEEN :minLat AND :maxLat
+        AND ST_Y(location) BETWEEN :minLon AND :maxLon
   """,
             nativeQuery = true)
     List<HeatMapPostDTO> findPostsForHeatMap(

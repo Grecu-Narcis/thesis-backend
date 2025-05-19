@@ -4,12 +4,19 @@ import * as apigatewayv2 from "aws-cdk-lib/aws-apigatewayv2";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as sqs from "aws-cdk-lib/aws-sqs";
 import { WebSocketStage } from "aws-cdk-lib/aws-apigatewayv2";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 
 export class WebSocketStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
+
+    const notificationsQueue = sqs.Queue.fromQueueArn(
+      this,
+      "Notifications Queue",
+      "arn:aws:sqs:eu-central-1:841162677495:NotificationsQueue"
+    );
 
     const connectionsTable = dynamodb.Table.fromTableName(
       this,
@@ -21,6 +28,12 @@ export class WebSocketStack extends Stack {
       this,
       "chatDataTable",
       "ChatData"
+    );
+
+    const notificationTokenTable = dynamodb.Table.fromTableName(
+      this,
+      "NotificationTokensTable",
+      "NotificationTokens"
     );
 
     // Lambda for $connect
@@ -50,6 +63,8 @@ export class WebSocketStack extends Stack {
       environment: {
         CONNECTIONS_TABLE: connectionsTable.tableName,
         CHAT_DATA_TABLE: chatDataTable.tableName,
+        NOTIFICATION_TOKENS_TABLE: notificationTokenTable.tableName,
+        NOTIFICATIONS_QUEUE: notificationsQueue.queueUrl,
       },
     });
 
@@ -65,8 +80,10 @@ export class WebSocketStack extends Stack {
     );
 
     connectionsTable.grantReadData(sendMessageHandler);
-
     chatDataTable.grantReadWriteData(sendMessageHandler);
+    notificationTokenTable.grantReadData(sendMessageHandler);
+
+    notificationsQueue.grantSendMessages(sendMessageHandler);
 
     // WebSocket API
     const webSocketApi = new apigatewayv2.WebSocketApi(

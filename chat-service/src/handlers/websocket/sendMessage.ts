@@ -1,12 +1,16 @@
 import * as AWS from "aws-sdk";
 
 const ddb = new AWS.DynamoDB.DocumentClient();
+const notificationsQueue = new AWS.SQS();
+
 const apiGateway = new AWS.ApiGatewayManagementApi({
   endpoint: process.env.WEBSOCKET_API_ENDPOINT, // e.g., "abc123.execute-api.region.amazonaws.com/dev"
 });
 
 const chatDataTable = process.env.CHAT_DATA_TABLE!;
 const connectionsTable = process.env.CONNECTIONS_TABLE!;
+const notificationTokensTable = process.env.NOTIFICATION_TOKENS_TABLE!;
+const notificationsQueueUrl = process.env.NOTIFICATIONS_QUEUE!;
 
 export const handler = async (event: any) => {
   const { from, to, message } = JSON.parse(event.body ?? "{}");
@@ -109,10 +113,17 @@ async function sendMessageToReceiver(username: string, message: any) {
     })
     .promise();
 
-  const connections = result.Items ?? [];
-
   // if no connection send push notification -> later, need to check how to retrieve the token
+  if (result.Items && result.Items.length > 0)
+    await sendMessageToReceiverWebSocket(result.Items, message, username);
+  else await sendMessagePushNotification(username, message);
+}
 
+async function sendMessageToReceiverWebSocket(
+  connections: any[],
+  message: any,
+  username: string
+) {
   await Promise.all(
     connections.map((conn) =>
       apiGateway
@@ -137,4 +148,37 @@ async function sendMessageToReceiver(username: string, message: any) {
         })
     )
   );
+}
+
+async function sendMessagePushNotification(username: string, message: any) {
+  console.log("Sending message via push notification!");
+  try {
+    const result = await ddb
+      .get({
+        TableName: notificationTokensTable,
+        Key: {
+          username: username,
+        },
+      })
+      .promise();
+
+    if (!result.Item) return;
+
+    const notification = {
+      notificationType: "NEW_MESSAGE",
+      destinationToken: result.Item.token,
+      username: message.from,
+      messageBody: message.message,
+      chatId: message.chatId,
+    };
+
+    await notificationsQueue
+      .sendMessage({
+        QueueUrl: notificationsQueueUrl,
+        MessageBody: JSON.stringify(notification),
+      })
+      .promise();
+  } catch (error) {
+    console.log("Error on fetching token: ", error);
+  }
 }
