@@ -16,25 +16,65 @@ import java.util.List;
 public interface PostsRepository extends JpaRepository<Post, Long> {
     int countByCreatedBy(String createdBy);
 
-    @Query(value = """ 
-            SELECT * FROM posts
-            WHERE createdBy <> :username
-            ORDER BY ST_Distance_Sphere(location, ST_GeomFromText(:point, 4326))
-            """, countQuery = """
-            SELECT COUNT(*) FROM posts
-            WHERE createdBy <> :username
-            """, nativeQuery = true)
+    /**
+     * Finds posts created by other users, ordered by proximity,
+     * filtering out any posts that have 50 or more reports.
+     */
+    @Query(value = """
+        SELECT p.* FROM posts p
+        LEFT JOIN post_reports pr ON p.postId = pr.postId
+        WHERE p.createdBy <> :username
+          AND NOT EXISTS (
+              SELECT 1 FROM seen_by sb
+              WHERE sb.username = :username AND sb.postId = p.postId
+          )
+        GROUP BY p.postId
+        HAVING COUNT(pr.postId) < 50
+        ORDER BY ST_Distance_Sphere(p.location, ST_GeomFromText(:point, 4326))
+        """, countQuery = """
+        SELECT COUNT(*) FROM (
+            SELECT 1 FROM posts p
+            LEFT JOIN post_reports pr ON p.postId = pr.postId
+            WHERE p.createdBy <> :username
+              AND NOT EXISTS (
+                  SELECT 1 FROM seen_by sb
+                  WHERE sb.username = :username AND sb.postId = p.postId
+              )
+            GROUP BY p.postId
+            HAVING COUNT(pr.postId) < 50
+        ) as posts_with_report_count
+        """, nativeQuery = true)
     Page<Post> findPostsNearbyUser(@Param("point") String point, @Param("username") String username, Pageable pageable);
 
-    @Query(value = """ 
-        SELECT * FROM posts
-        INNER JOIN follows on posts.createdBy = follows.followed_user
-        WHERE follows.following_user = :username
-        ORDER BY createdAt DESC, postId DESC
+    /**
+     * Finds posts from users that the specified user follows, ordered by creation date,
+     * filtering out any posts that have 50 or more reports.
+     */
+    @Query(value = """
+        SELECT p.* FROM posts p
+        INNER JOIN follows f ON p.createdBy = f.followed_user
+        LEFT JOIN post_reports pr ON p.postId = pr.postId
+        WHERE f.following_user = :username
+          AND NOT EXISTS (
+              SELECT 1 FROM seen_by sb
+              WHERE sb.username = :username AND sb.postId = p.postId
+          )
+        GROUP BY p.postId
+        HAVING COUNT(pr.postId) < 50
+        ORDER BY p.createdAt DESC, p.postId DESC
         """, countQuery = """
-        SELECT COUNT(*) FROM posts
-        INNER JOIN follows on posts.createdBy = follows.followed_user
-        WHERE follows.following_user = :username
+        SELECT COUNT(*) FROM (
+            SELECT 1 FROM posts p
+            INNER JOIN follows f ON p.createdBy = f.followed_user
+            LEFT JOIN post_reports pr ON p.postId = pr.postId
+            WHERE f.following_user = :username
+              AND NOT EXISTS (
+                  SELECT 1 FROM seen_by sb
+                  WHERE sb.username = :username AND sb.postId = p.postId
+              )
+            GROUP BY p.postId
+            HAVING COUNT(pr.postId) < 50
+        ) as posts_with_report_count
         """, nativeQuery = true)
     Page<Post> findPostsByFollowedUsers(@Param("username") String username, Pageable pageable);
 
@@ -50,6 +90,7 @@ public interface PostsRepository extends JpaRepository<Post, Long> {
 
     @Query(value = """
       SELECT
+        postId,
         ST_X(location) AS latitude,
         ST_Y(location) AS longitude
       FROM posts

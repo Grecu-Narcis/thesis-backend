@@ -5,6 +5,7 @@ import jakarta.annotation.PostConstruct;
 import org.example.postsservice.models.comments.Comment;
 import org.example.postsservice.repositories.CommentsRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
@@ -19,6 +20,9 @@ public class MockCommentsGenerator {
     static int MOCK_COMMENTS_COUNT = 100;
     private final CommentsRepository commentsRepository;
     private final Random random = new Random();
+
+    @Value("${app.users.service.url}")
+    private String userServiceUrl;
 
     @Autowired
     public MockCommentsGenerator(RestTemplate restTemplate, CommentsRepository commentsRepository) {
@@ -54,7 +58,7 @@ public class MockCommentsGenerator {
 
     private List<String> fetchUsernamesFromUserService() {
         try {
-            String url = "http://localhost:8080/api/auth/usernames";
+            String url = this.userServiceUrl + "/api/auth/usernames";
             return restTemplate.getForObject(url, List.class);
         } catch (Exception e) {
             Logger.logError(e.getMessage());

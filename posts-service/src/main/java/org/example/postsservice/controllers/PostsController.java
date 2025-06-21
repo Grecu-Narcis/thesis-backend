@@ -1,16 +1,20 @@
 package org.example.postsservice.controllers;
 
 import lombok.extern.slf4j.Slf4j;
+import org.example.postsservice.business.PostReportService;
 import org.example.postsservice.business.PostsNotificationService;
 import org.example.postsservice.business.PostsService;
 import org.example.postsservice.business.S3Service;
+import org.example.postsservice.config.PostPage;
 import org.example.postsservice.dto.AddPostDTO;
 import org.example.postsservice.dto.LikePostDTO;
 import org.example.postsservice.dto.PostsListResponse;
+import org.example.postsservice.dto.ReportPostRequest;
 import org.example.postsservice.exceptions.AddPostException;
 import org.example.postsservice.exceptions.AlreadyLikedPostException;
 import org.example.postsservice.exceptions.PostNotFoundException;
 import org.example.postsservice.models.Post;
+import org.example.postsservice.utils.JWTUtils;
 import org.example.postsservice.utils.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -29,13 +33,18 @@ public class PostsController {
     private final S3Service s3Service;
     private final PostsService postsService;
     private final PostsNotificationService postsNotificationService;
+    private final PostReportService postReportService;
+    private final JWTUtils jwtUtils;
 
     @Autowired
     public PostsController(S3Service s3Service, PostsService postsService,
-                           PostsNotificationService postsNotificationService) {
+                           PostsNotificationService postsNotificationService,
+                           PostReportService postReportService, JWTUtils jwtUtils) {
         this.s3Service = s3Service;
         this.postsService = postsService;
         this.postsNotificationService = postsNotificationService;
+        this.postReportService = postReportService;
+        this.jwtUtils = jwtUtils;
     }
 
     @GetMapping(path = "/presignedUrl")
@@ -68,9 +77,15 @@ public class PostsController {
     }
 
     @PostMapping(path = "")
-    public ResponseEntity<?> addPost(@RequestBody AddPostDTO postDTO) {
+    public ResponseEntity<?> addPost(@RequestBody AddPostDTO postDTO,
+                                     @RequestHeader("Authorization") String bearerToken) {
         Logger.log("Adding post: " + postDTO.getImageKey() + " " + postDTO.getCreatedBy() + " " +
                 postDTO.getDescription() + " " + postDTO.getLatitude() + " " + postDTO.getLongitude());
+
+        String authorizedUserId = jwtUtils.getUsernameFromBearerToken(bearerToken);
+
+        if (!authorizedUserId.equals(postDTO.getCreatedBy()))
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
         try {
             Post createdPost = this.postsService.addPost(postDTO.getImageKey(), postDTO.getCreatedBy(),
@@ -84,6 +99,25 @@ public class PostsController {
         } catch (AddPostException e) {
             Logger.log("Error adding post: " + e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<?> deletePost(@PathVariable Long postId, @RequestHeader("Authorization") String bearerToken) {
+        String authorizedUsername = jwtUtils.getUsernameFromBearerToken(bearerToken);
+
+        try {
+            Post requiredPost = this.postsService.getById(postId);
+
+            if (!authorizedUsername.equals(requiredPost.getCreatedBy()))
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+            this.postsService.deletePost(postId);
+
+            return ResponseEntity.ok().build();
+        }
+        catch (Exception e) {
+            return ResponseEntity.notFound().build();
         }
     }
 
@@ -103,23 +137,29 @@ public class PostsController {
     public ResponseEntity<PostsListResponse> getPostsByFollowedUsers(@RequestParam String username, @RequestParam int page) {
         Logger.log("Getting posts by followed users for user: " + username + " page: " + page);
 
-        Page<Post> foundPosts = this.postsService.findPostsByFollowedUsers(username, page);
+        PostPage foundPosts = this.postsService.findPostsByFollowedUsers(username, page);
 
-        return ResponseEntity.ok(new PostsListResponse(foundPosts.getContent(), foundPosts.hasNext()));
+        return ResponseEntity.ok(new PostsListResponse(foundPosts.getContent(), foundPosts.getHasNext()));
     }
 
     @GetMapping("/user/{username}")
     public ResponseEntity<PostsListResponse> getPostsByUsername(@PathVariable String username, @RequestParam int page) {
         Logger.log("Getting posts by user: " + username + " page: " + page);
 
-        Page<Post> foundPosts = this.postsService.findPostsByUsername(username, page);
+        PostPage foundPosts = this.postsService.findPostsByUsername(username, page);
 
-        return ResponseEntity.ok(new PostsListResponse(foundPosts.getContent(), foundPosts.hasNext()));
+        return ResponseEntity.ok(new PostsListResponse(foundPosts.getContent(), foundPosts.getHasNext()));
     }
 
     @PostMapping("/like")
-    public ResponseEntity<?> likePost(@RequestBody LikePostDTO likePostDTO) {
+    public ResponseEntity<?> likePost(@RequestBody LikePostDTO likePostDTO,
+                                      @RequestHeader("Authorization") String bearerToken) {
         Logger.log("Liking post: " + likePostDTO.getPostId() + " username: " + likePostDTO.getUsername());
+
+        String authorizedUserId = jwtUtils.getUsernameFromBearerToken(bearerToken);
+
+        if (!authorizedUserId.equals(likePostDTO.getUsername()))
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
         try {
             this.postsService.likePost(likePostDTO.getPostId(), likePostDTO.getUsername());
@@ -135,8 +175,14 @@ public class PostsController {
 
     @DeleteMapping("/like/{postId}/{username}")
     public ResponseEntity<?> unlikePost(@PathVariable Long postId,
-                                        @PathVariable String username) {
+                                        @PathVariable String username,
+                                        @RequestHeader("Authorization") String bearerToken) {
         Logger.log("Unliking post: " + postId + " username: " + username);
+
+        String authorizedUserId = jwtUtils.getUsernameFromBearerToken(bearerToken);
+
+        if (!authorizedUserId.equals(username))
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
         try {
             this.postsService.unlikePost(postId, username);
@@ -172,5 +218,24 @@ public class PostsController {
         Logger.log("Getting posts for heatmap: " + minLat + " " + maxLat + " " + minLon + " " + maxLon);
 
         return ResponseEntity.ok(this.postsService.getPostsForHeatMap(minLat, maxLat, minLon, maxLon));
+    }
+
+    @PostMapping("/report")
+    public ResponseEntity<?> reportPost(@RequestBody ReportPostRequest reportPostRequest,
+                                        @RequestHeader("Authorization") String bearerToken) {
+
+        String authorizedUserId = jwtUtils.getUsernameFromBearerToken(bearerToken);
+
+        if (!authorizedUserId.equals(reportPostRequest.getUsername()))
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+        try {
+            postReportService.createPostReport(reportPostRequest.getPostId(), reportPostRequest.getUsername());
+
+            return ResponseEntity.ok("Reported post");
+        }
+        catch (Exception e) {
+            return ResponseEntity.internalServerError().body(e.getMessage());
+        }
     }
 }

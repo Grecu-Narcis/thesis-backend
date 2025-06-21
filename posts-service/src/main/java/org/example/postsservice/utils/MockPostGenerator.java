@@ -10,6 +10,7 @@ import org.example.postsservice.repositories.PostsRepository;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
@@ -24,6 +25,9 @@ public class MockPostGenerator {
     private final Faker faker = new Faker();
     private final GeometryFactory geometryFactory = new GeometryFactory();
     private final Random random = new Random();
+
+    @Value("${app.users.service.url}")
+    private String userServiceUrl;
 
     static int MOCK_POST_COUNT = 10000;
 
@@ -77,7 +81,7 @@ public class MockPostGenerator {
 
     private List<String> fetchUsernamesFromUserService() {
         try {
-            String url = "http://localhost:8080/api/auth/usernames";
+            String url = this.userServiceUrl + "/api/auth/usernames";
             return restTemplate.getForObject(url, List.class);
         } catch (Exception e) {
             Logger.logError(e.getMessage());
@@ -96,5 +100,24 @@ public class MockPostGenerator {
             return Collections.emptyList();
         }
     }
+
+    public void randomizeImageKeys() {
+        List<String> imageKeys = List.of(
+                "e30.jpg", "mustang-1964.jpg", "dacia-1310.jpg", "tesla-model-3.jpg", "mclaren-p1.jpg",
+                "m5-competition.jpg", "porsche-911.jpg", "c-class-c63.jpg", "ferrari-f40.jpg", "dodge-challenger.jpg",
+                "porsche-gtr.jpeg", "golf-gtr.jpg", "eqs.jpg", "camaro.jpg",
+                "volvo-p130.jpg", "inifiniti.jpg", "lexus.jpg", "dsuter.jpg", "lotus.jpg"
+        );
+
+        List<Post> posts = postRepository.findAll();
+        for (Post post : posts) {
+            String randomImageKey = imageKeys.get(random.nextInt(imageKeys.size()));
+            post.setImageKey(randomImageKey);
+        }
+
+        postRepository.saveAll(posts);
+        System.out.println("✅ Randomized image keys for " + posts.size() + " posts.");
+    }
+
 }
 

@@ -1,5 +1,6 @@
 package org.example.postsservice.models;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -8,13 +9,16 @@ import lombok.Setter;
 import org.example.postsservice.serializers.PointSerializer;
 import org.locationtech.jts.geom.Point;
 
+import java.io.Serializable;
 import java.util.Date;
 
 @Getter
 @Setter
 @NoArgsConstructor
+@JsonSerialize
+@JsonDeserialize
 @Entity(name = "posts")
-public class Post {
+public class Post implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "postId")

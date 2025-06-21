@@ -5,6 +5,7 @@ import org.example.postsservice.models.PostCreatedNotification;
 import org.example.postsservice.models.likes.LikeNotification;
 import org.example.postsservice.utils.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
@@ -13,7 +14,9 @@ import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 @Service
 public class SqsService {
     private final SqsClient sqsClient;
-    static String queueUrl = "https://sqs.eu-central-1.amazonaws.com/841162677495/NotificationsQueue";
+
+    @Value("${aws.sqs.queue.url}")
+    static String queueUrl;
     private final ObjectMapper objectMapper;
 
     @Autowired

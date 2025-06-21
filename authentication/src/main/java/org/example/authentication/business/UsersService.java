@@ -4,6 +4,8 @@ import org.example.authentication.exceptions.UserNotFoundException;
 import org.example.authentication.models.User;
 import org.example.authentication.repositories.UsersRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +34,7 @@ public class UsersService {
         usersRepository.save(user);
     }
 
+    @Cacheable(value = "users", key = "#username")
     public User getUser(String username) throws UserNotFoundException {
         Optional<User> user = usersRepository.findByUsername(username);
 
@@ -41,22 +44,24 @@ public class UsersService {
         return user.get();
     }
 
+    @CacheEvict(value = "users", key = "username")
     public void updateUserProfileImage(String username, String imageKey) throws UserNotFoundException {
-        User requiredUser = this.getUser(username);
+        User requiredUser = this.findUserByUsername(username);
 
         requiredUser.setProfileImage(imageKey);
         usersRepository.save(requiredUser);
     }
 
+    @CacheEvict(value = "users", key = "username")
     public void updateUserBio(String username, String bioKey) throws UserNotFoundException {
-        User requiredUser = this.getUser(username);
+        User requiredUser = this.findUserByUsername(username);
 
         requiredUser.setBio(bioKey);
         usersRepository.save(requiredUser);
     }
 
     public boolean validateUserCredentials(String username, String password) throws UserNotFoundException {
-        User requiredUser = this.getUser(username);
+        User requiredUser = this.findUserByUsername(username);
 
         return passwordEncoder.matches(password, requiredUser.getPassword());
     }
@@ -72,5 +77,14 @@ public class UsersService {
     public Page<User> getUsersByUsername(String searchKey, String username, int page) {
         Pageable pageable = PageRequest.of(page, UsersService.pageSize);
         return usersRepository.findByUsernameContainingIgnoreCase(searchKey, username, pageable);
+    }
+
+    private User findUserByUsername(String username) throws UserNotFoundException {
+        Optional<User> user = usersRepository.findByUsername(username);
+
+        if (user.isEmpty())
+            throw new UserNotFoundException("User not found!");
+
+        return user.get();
     }
 }

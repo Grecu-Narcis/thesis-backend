@@ -38,6 +38,11 @@ dependencies {
     // AWS SDK
     implementation("software.amazon.awssdk:sqs:2.31.35")
 
+    // Redis
+    implementation("org.springframework.boot:spring-boot-starter-cache")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("org.apache.commons:commons-pool2")
+
     testCompileOnly("org.projectlombok:lombok:1.18.38")
     testAnnotationProcessor("org.projectlombok:lombok:1.18.38")
 

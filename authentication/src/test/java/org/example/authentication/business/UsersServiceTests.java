@@ -5,24 +5,19 @@ import org.example.authentication.models.User;
 import org.example.authentication.repositories.UsersRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.*;
+import org.springframework.data.domain.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
-class UsersServiceTest {
+@ExtendWith(org.mockito.junit.jupiter.MockitoExtension.class)
+class UsersServiceTests {
 
     @Mock
     private UsersRepository usersRepository;
@@ -33,92 +28,109 @@ class UsersServiceTest {
     @InjectMocks
     private UsersService usersService;
 
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-    }
+    private final User mockUser = new User("john", "John Doe", "john@example.com", "hashedpass");
 
     @Test
-    void saveUser_shouldHashPasswordAndSaveUser() {
-        String username = "testUser";
-        String fullName = "Test User";
-        String email = "test@example.com";
-        String password = "password";
-        String hashedPassword = "hashed";
+    void saveUser_shouldEncodePasswordAndSaveUser() {
+        when(passwordEncoder.encode("plainpass")).thenReturn("hashedpass");
 
-        when(passwordEncoder.encode(password)).thenReturn(hashedPassword);
-
-        usersService.saveUser(username, fullName, email, password);
+        usersService.saveUser("john", "John Doe", "john@example.com", "plainpass");
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(usersRepository).save(userCaptor.capture());
+
         User savedUser = userCaptor.getValue();
-
-        assertEquals(username, savedUser.getUsername());
-        assertEquals(fullName, savedUser.getFullName());
-        assertEquals(email, savedUser.getEmail());
-        assertEquals(hashedPassword, savedUser.getPassword());
+        assertEquals("john", savedUser.getUsername());
+        assertEquals("hashedpass", savedUser.getPassword());
     }
 
     @Test
-    void validateUserCredentials_shouldReturnTrueForMatchingPassword() throws UserNotFoundException {
-        String username = "testUser";
-        String password = "password";
-        String hashedPassword = "hashed";
+    void getUser_shouldReturnUserIfFound() throws UserNotFoundException {
+        when(usersRepository.findByUsername("john")).thenReturn(Optional.of(mockUser));
 
-        User user = new User(username, "Test User", "test@example.com", hashedPassword);
+        User result = usersService.getUser("john");
 
-        when(usersRepository.findByUsername(username)).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches(password, hashedPassword)).thenReturn(true);
-
-        assertTrue(usersService.validateUserCredentials(username, password));
+        assertEquals("john", result.getUsername());
     }
 
     @Test
-    void validateUserCredentials_shouldThrowExceptionIfUserNotFound() {
-        when(usersRepository.findByUsername("nonexistent")).thenReturn(Optional.empty());
+    void getUser_shouldThrowIfUserNotFound() {
+        when(usersRepository.findByUsername("nope")).thenReturn(Optional.empty());
 
-        assertThrows(UserNotFoundException.class, () -> {
-            usersService.validateUserCredentials("nonexistent", "password");
-        });
+        assertThrows(UserNotFoundException.class, () -> usersService.getUser("nope"));
     }
 
     @Test
-    void existsByUsername_shouldReturnTrueIfUserExists() {
-        when(usersRepository.existsByUsername("existingUser")).thenReturn(true);
+    void updateUserProfileImage_shouldSetImageAndSave() throws UserNotFoundException {
+        when(usersRepository.findByUsername("john")).thenReturn(Optional.of(mockUser));
 
-        assertTrue(usersService.existsByUsername("existingUser"));
+        usersService.updateUserProfileImage("john", "image123");
+
+        assertEquals("image123", mockUser.getProfileImage());
+        verify(usersRepository).save(mockUser);
+    }
+
+    @Test
+    void updateUserBio_shouldSetBioAndSave() throws UserNotFoundException {
+        when(usersRepository.findByUsername("john")).thenReturn(Optional.of(mockUser));
+
+        usersService.updateUserBio("john", "My bio");
+
+        assertEquals("My bio", mockUser.getBio());
+        verify(usersRepository).save(mockUser);
+    }
+
+    @Test
+    void validateUserCredentials_shouldReturnTrueIfPasswordMatches() throws UserNotFoundException {
+        when(usersRepository.findByUsername("john")).thenReturn(Optional.of(mockUser));
+        when(passwordEncoder.matches("rawpass", "hashedpass")).thenReturn(true);
+
+        boolean result = usersService.validateUserCredentials("john", "rawpass");
+
+        assertTrue(result);
+    }
+
+    @Test
+    void validateUserCredentials_shouldReturnFalseIfPasswordDoesNotMatch() throws UserNotFoundException {
+        when(usersRepository.findByUsername("john")).thenReturn(Optional.of(mockUser));
+        when(passwordEncoder.matches("wrong", "hashedpass")).thenReturn(false);
+
+        boolean result = usersService.validateUserCredentials("john", "wrong");
+
+        assertFalse(result);
+    }
+
+    @Test
+    void existsByUsername_shouldReturnTrueOrFalse() {
+        when(usersRepository.existsByUsername("john")).thenReturn(true);
+        assertTrue(usersService.existsByUsername("john"));
+
+        when(usersRepository.existsByUsername("doe")).thenReturn(false);
+        assertFalse(usersService.existsByUsername("doe"));
     }
 
     @Test
     void getAllUsernames_shouldReturnAllUsernames() {
-        List<User> users = List.of(
-                new User("user1", "User One", "u1@example.com", "pass1"),
-                new User("user2", "User Two", "u2@example.com", "pass2")
+        List<User> mockUsers = List.of(
+                new User("john", "John Doe", "a@a.com", "x"),
+                new User("alice", "Alice", "b@b.com", "y")
         );
 
-        when(usersRepository.findAll()).thenReturn(users);
+        when(usersRepository.findAll()).thenReturn(mockUsers);
 
         List<String> usernames = usersService.getAllUsernames();
-
-        assertEquals(List.of("user1", "user2"), usernames);
+        assertEquals(List.of("john", "alice"), usernames);
     }
 
     @Test
-    void getUsersByUsername_shouldReturnPageOfUsers() {
-        String searchKey = "john";
-        String excludeUsername = "johnny";
-        int page = 0;
-        Pageable pageable = PageRequest.of(page, 30);
-        Page<User> pageOfUsers = new PageImpl<>(List.of(
-                new User("johnsmith", "John Smith", "js@example.com", "pass")
-        ));
+    void getUsersByUsername_shouldReturnPagedUsers() {
+        Pageable pageable = PageRequest.of(0, 30);
+        Page<User> mockPage = new PageImpl<>(List.of(mockUser));
 
-        when(usersRepository.findByUsernameContainingIgnoreCase(searchKey, excludeUsername, pageable)).thenReturn(pageOfUsers);
+        when(usersRepository.findByUsernameContainingIgnoreCase("jo", "john", pageable)).thenReturn(mockPage);
 
-        Page<User> result = usersService.getUsersByUsername(searchKey, excludeUsername, page);
-
-        assertEquals(1, result.getContent().size());
-        assertEquals("johnsmith", result.getContent().get(0).getUsername());
+        Page<User> result = usersService.getUsersByUsername("jo", "john", 0);
+        assertEquals(1, result.getTotalElements());
+        assertEquals("john", result.getContent().get(0).getUsername());
     }
 }

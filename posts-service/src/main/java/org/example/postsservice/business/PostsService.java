@@ -1,5 +1,6 @@
 package org.example.postsservice.business;
 
+import org.example.postsservice.config.PostPage;
 import org.example.postsservice.dto.HeatMapPostDTO;
 import org.example.postsservice.exceptions.AddPostException;
 import org.example.postsservice.exceptions.AlreadyLikedPostException;
@@ -13,16 +14,20 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class PostsService {
@@ -30,20 +35,31 @@ public class PostsService {
     private final LikesRepository likesRepository;
     private final GeometryFactory geometryFactory;
     private final PostsNotificationService postsNotificationService;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     static int SRID = 4326;
     static int pageSize = 30;
 
     @Autowired
     public PostsService(PostsRepository postsRepository, LikesRepository likesRepository,
-                        PostsNotificationService postsNotificationService) {
+                        PostsNotificationService postsNotificationService,
+                        RedisTemplate<String, Object> redisTemplate) {
         this.postsRepository = postsRepository;
         this.likesRepository = likesRepository;
         this.postsNotificationService = postsNotificationService;
         this.geometryFactory = new GeometryFactory();
+        this.redisTemplate = redisTemplate;
+    }
+
+    private void evictUserPostPageCache(String username) {
+        String prefix = "postsByUserPage::" + username + ":";
+        Set<String> keys = redisTemplate.keys(prefix + "*");
+        if (!keys.isEmpty())
+            redisTemplate.delete(keys);
     }
 
     // TODO: Add post validator
+    @CacheEvict(value = "userPostCounts", key = "#createdBy")
     public Post addPost(String imageKey, String createdBy, String description, double latitude, double longitude,
                         String carBrand, String carModel, int productionYear) throws AddPostException {
         try {
@@ -52,6 +68,7 @@ public class PostsService {
 
             Post postToAdd = new Post(imageKey, createdBy, description, postLocation, carBrand, carModel, productionYear);
 
+            evictUserPostPageCache(createdBy);
             return this.postsRepository.save(postToAdd);
         }
         catch (Exception e) {
@@ -76,18 +93,25 @@ public class PostsService {
         return this.postsRepository.findPostsNearbyUser(pointWKT, username, pageable);
     }
 
-    public Page<Post> findPostsByFollowedUsers(String username, int pageNumber) {
+    @Cacheable(value = "userFeed", key = "#username + ':' + #pageNumber")
+    public PostPage findPostsByFollowedUsers(String username, int pageNumber) {
         Pageable pageable = PageRequest.of(pageNumber, PostsService.pageSize);
 
-        return this.postsRepository.findPostsByFollowedUsers(username, pageable);
+        Page<Post> returnedPage = this.postsRepository.findPostsByFollowedUsers(username, pageable);
+
+        return new PostPage(returnedPage.getContent(), returnedPage.hasNext());
     }
 
-    public Page<Post> findPostsByUsername(String username, int pageNumber) {
+    @Cacheable(value = "postsByUserPage", key = "#username + ':' + #pageNumber")
+    public PostPage findPostsByUsername(String username, int pageNumber) {
         Pageable pageable = PageRequest.of(pageNumber, PostsService.pageSize, Sort.by("createdAt").descending());
 
-        return this.postsRepository.findPostsByCreatedBy(username, pageable);
+        Page<Post> returnedPage = this.postsRepository.findPostsByCreatedBy(username, pageable);
+
+        return new PostPage(returnedPage.getContent(), returnedPage.hasNext());
     }
 
+    @CacheEvict(value = "likes", key = "#postId + ':' + #username")
     public void likePost(Long postId, String username) throws AlreadyLikedPostException, PostNotFoundException {
         Optional<Post> requiredPost = this.postsRepository.findById(postId);
 
@@ -104,6 +128,7 @@ public class PostsService {
     }
 
     @Transactional
+    @CacheEvict(value = "likes", key = "#postId + ':' + #username")
     public void unlikePost(Long postId, String username) throws PostNotFoundException {
         Optional<Post> requiredPost = this.postsRepository.findById(postId);
 
@@ -115,15 +140,24 @@ public class PostsService {
         this.likesRepository.deleteByUsernameAndPostId(username, postId);
     }
 
+    @Cacheable(value = "likes", key = "#postId + ':' + #username")
     public boolean isLikedByUser(Long postId, String username) {
         return this.likesRepository.existsByUsernameAndPostId(username, postId);
     }
 
+    @Cacheable(value = "userPostCounts", key = "#username")
     public int countPostsByUser(String username) {
         return this.postsRepository.countByCreatedBy(username);
     }
 
     public List<HeatMapPostDTO> getPostsForHeatMap(double minLat, double maxLat, double minLon, double maxLon) {
         return this.postsRepository.findPostsForHeatMap(minLat, maxLat, minLon, maxLon);
+    }
+
+    public void deletePost(Long postId) {
+        Optional<Post> post = this.postsRepository.findById(postId);
+        this.postsRepository.deleteById(postId);
+
+        evictUserPostPageCache(post.get().getCreatedBy());
     }
 }

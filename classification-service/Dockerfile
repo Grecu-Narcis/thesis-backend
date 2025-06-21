@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
     libxrender1 \
     libxext6 \
     build-essential \
+    pkg-config \
+    default-libmysqlclient-dev \
     && apt-get clean
 
 COPY requirements.txt requirements.txt
